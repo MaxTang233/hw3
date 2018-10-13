@@ -468,6 +468,11 @@ public class Table implements Iterable<Record>, Closeable {
    */
   public class RIDPageIterator implements BacktrackingIterator<RecordId> {
 	    //member variables go here
+        private int mark = -1;
+        private int ptrIdx;
+        private Page page;
+        private byte[] bitmap;
+        private int numRecords;
 
 	    /**
 	    * The following method signature is provided for guidance, but not necessary. Feel free to
@@ -475,23 +480,46 @@ public class Table implements Iterable<Record>, Closeable {
 	    */
 
 	    public RIDPageIterator(Page page) {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	      this.page = page;
+	      this.bitmap = getBitMap(page);
+	      this.numRecords = numRecordsOnPage(page);
+	      this.ptrIdx = 0;
 	    }
 
 	    public boolean hasNext() {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	        int i = ptrIdx;
+	        while (i < bitmap.length*8) {
+                if (Bits.getBit(bitmap, i) == Bits.Bit.ONE) {
+                    return true;
+                }
+                i += 1;
+            }
+	        return false;
 	    }
 
 	    public RecordId next() {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	        boolean flag = true;
+	        while (flag && ptrIdx < bitmap.length*8) {
+	            if (Bits.getBit(bitmap, ptrIdx) == Bits.Bit.ONE) {
+                    flag = false;
+                    short entryNum = (short) ptrIdx;
+                    ptrIdx += 1;
+                    return new RecordId(page.getPageNum(), entryNum);
+                }
+                ptrIdx += 1;
+            }
+            throw new NoSuchElementException();
+
 	    }
 
 	    public void mark() {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	      mark = ptrIdx;
 	    }
 
 	    public void reset() {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	        if (mark != -1) {
+                ptrIdx = mark - 1;
+            }
 	    }
 	  }
 
@@ -552,7 +580,7 @@ public class Table implements Iterable<Record>, Closeable {
 
 	    public RIDBlockIterator(BacktrackingIterator<Page> block) {
 	      this.block = block;
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	      this.blockIter = new RIDPageIterator(block.next());
 	      //if you want to add anything to this constructor, feel free to
 	    }
 
@@ -590,11 +618,20 @@ public class Table implements Iterable<Record>, Closeable {
 	    }
 
 	    public boolean hasNext() {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	      return blockIter.hasNext() || block.hasNext();
 	    }
 
 	    public RecordId next() {
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	      if (blockIter.hasNext()) {
+	          prevRecordId = nextRecordId;
+	          nextRecordId = blockIter.next();
+	          return nextRecordId;
+          } else {
+	          blockIter = new RIDPageIterator(block.next());
+              prevRecordId = nextRecordId;
+              nextRecordId = blockIter.next();
+              return nextRecordId;
+          }
 	    }
 
 	    /**
