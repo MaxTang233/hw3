@@ -580,7 +580,9 @@ public class Table implements Iterable<Record>, Closeable {
 
 	    public RIDBlockIterator(BacktrackingIterator<Page> block) {
 	      this.block = block;
-	      this.blockIter = new RIDPageIterator(block.next());
+	      if (block.hasNext()) {
+              blockIter = new RIDPageIterator(block.next());
+          }
 	      //if you want to add anything to this constructor, feel free to
 	    }
 
@@ -618,20 +620,23 @@ public class Table implements Iterable<Record>, Closeable {
 	    }
 
 	    public boolean hasNext() {
-	      return blockIter.hasNext() || block.hasNext();
+	      if (blockIter != null && blockIter.hasNext()) {
+	          return true;
+          } else if (block.hasNext()) {
+	          blockIter = new RIDPageIterator(block.next());
+	          return hasNext();
+          } else {
+	          return false;
+          }
 	    }
 
 	    public RecordId next() {
-	      if (blockIter.hasNext()) {
-	          prevRecordId = nextRecordId;
-	          nextRecordId = blockIter.next();
-	          return nextRecordId;
-          } else {
-	          blockIter = new RIDPageIterator(block.next());
-              prevRecordId = nextRecordId;
-              nextRecordId = blockIter.next();
-              return nextRecordId;
-          }
+	        if (hasNext()) {
+                prevRecordId = blockIter.next();
+                return prevRecordId;
+            }
+            throw new NoSuchElementException();
+
 	    }
 
 	    /**

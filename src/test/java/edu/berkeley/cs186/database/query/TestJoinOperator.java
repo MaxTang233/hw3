@@ -84,7 +84,8 @@ public class TestJoinOperator {
 
 
     while (outputIterator.hasNext()) {
-      assertEquals(expectedRecord, outputIterator.next());
+      Record output = outputIterator.next();
+      assertEquals(expectedRecord, output);
       numRecords++;
     }
 
