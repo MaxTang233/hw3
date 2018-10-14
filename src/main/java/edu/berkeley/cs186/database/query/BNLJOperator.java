@@ -57,16 +57,45 @@ public class BNLJOperator extends JoinOperator {
 	     * You're free to use these member variables, but you're not obligated to.
 	     */
 
-	    //private Iterator<Page> leftIterator = null;
-	    //private Iterator<Page> rightIterator = null;
-	    //private BacktrackingIterator<Record> leftRecordIterator = null;
-	    //private BacktrackingIterator<Record> rightRecordIterator = null;
-	    //private Record leftRecord = null;
-	    //private Record nextRecord = null;
+	    private Iterator<Page> leftIterator = null;
+	    private Iterator<Page> rightIterator = null;
+	    private BacktrackingIterator<Record> leftRecordIterator = null;
+	    private BacktrackingIterator<Record> rightRecordIterator = null;
+	    private Record leftRecord = null;
+	    private Record nextRecord = null;
+        private Record rightRecord;
+        private int totalBuffers;
 
 	    public BNLJIterator() throws QueryPlanException, DatabaseException {
 	      super();
-	      throw new UnsupportedOperationException("TODO(hw3): implement");
+	        this.totalBuffers = numBuffers - 2;
+            this.rightIterator = BNLJOperator.this.getPageIterator(this.getRightTableName());
+            this.leftIterator = BNLJOperator.this.getPageIterator(this.getLeftTableName());
+            rightIterator.next();
+            leftIterator.next();
+            this.rightRecordIterator = BNLJOperator.this.getBlockIterator(this.getRightTableName(), rightIterator, 1);
+            this.leftRecordIterator = BNLJOperator.this.getBlockIterator(this.getLeftTableName(), leftIterator, totalBuffers);
+
+            this.nextRecord = null;
+
+            this.leftRecord = leftRecordIterator.hasNext() ? leftRecordIterator.next() : null;
+            this.rightRecord = rightRecordIterator.hasNext() ? rightRecordIterator.next() : null;
+
+            if (leftRecord != null) {
+                leftRecordIterator.mark();
+            }
+            if (rightRecord != null) {
+                rightRecordIterator.mark();
+            }
+            else {
+                return;
+            }
+
+            try {
+                fetchNextRecord();
+            } catch (DatabaseException e) {
+                this.nextRecord = null;
+            }
 	    }
 	    
     
@@ -76,8 +105,91 @@ public class BNLJOperator extends JoinOperator {
      * @return true if this iterator has another record to yield, otherwise false
      */
     public boolean hasNext() {
-        throw new UnsupportedOperationException("TODO(hw3): implement");
+        return nextRecord != null;
     }
+
+      private void nextLeftRecord() throws DatabaseException {
+          if (leftRecordIterator.hasNext()) {
+              leftRecord = leftRecordIterator.next();
+          } else {
+              if (leftIterator.hasNext()) {
+                  leftRecordIterator = BNLJOperator.this.getBlockIterator(this.getLeftTableName(), leftIterator, totalBuffers);
+                  leftRecord = leftRecordIterator.next();
+              } else {
+                  throw new DatabaseException("All done");
+              }
+          }
+      }
+
+      private Record rightNext() throws DatabaseException {
+          if (rightRecordIterator.hasNext()) {
+              return rightRecordIterator.next();
+          } else {
+              if (rightIterator.hasNext()) {
+                  rightRecordIterator = BNLJOperator.this.getBlockIterator(this.getRightTableName(), rightIterator, 1);
+                  return rightRecordIterator.next();
+              } else {
+                  return null;
+              }
+          }
+      }
+
+      private void resetRightRecord() throws DatabaseException {
+          rightIterator = BNLJOperator.this.getPageIterator(this.getRightTableName());
+          assert(rightIterator.hasNext());
+          rightIterator.next();
+          rightRecordIterator = BNLJOperator.this.getBlockIterator(this.getRightTableName(), rightIterator, 1);
+          rightRecord = rightRecordIterator.next();
+          rightRecordIterator.mark();
+      }
+
+
+      private void fetchNextRecord() throws DatabaseException {
+          if (this.leftRecord == null) {
+              throw new DatabaseException("No new record to fetch");
+          } else {
+              nextRecord = null;
+              while (!hasNext()) {
+                  if (this.rightRecord != null) {
+                      DataBox leftJoinValue = this.leftRecord.getValues().get(BNLJOperator.this.getLeftColumnIndex());
+                      DataBox rightJoinValue = rightRecord.getValues().get(BNLJOperator.this.getRightColumnIndex());
+                      if (leftJoinValue.equals(rightJoinValue)) {
+                          List<DataBox> leftValues = new ArrayList<>(this.leftRecord.getValues());
+                          List<DataBox> rightValues = new ArrayList<>(rightRecord.getValues());
+                          leftValues.addAll(rightValues);
+                          this.nextRecord = new Record(leftValues);
+                      }
+                      this.rightRecord = rightRecordIterator.hasNext() ? rightRecordIterator.next() : null;
+                  } else {
+                      if (!leftRecordIterator.hasNext() && !rightRecordIterator.hasNext() && !rightIterator.hasNext() && !leftIterator.hasNext()) {
+                          throw new DatabaseException("no more");
+                      } else if (!leftRecordIterator.hasNext() && !rightRecordIterator.hasNext() && !rightIterator.hasNext() && leftIterator.hasNext()) {
+                          leftRecordIterator = BNLJOperator.this.getBlockIterator(this.getLeftTableName(), leftIterator, totalBuffers);
+                          leftRecord = leftRecordIterator.next();
+                          leftRecordIterator.mark();
+                          resetRightRecord();
+                      } else if (!leftRecordIterator.hasNext() && !rightRecordIterator.hasNext() && rightIterator.hasNext()) {
+                          leftRecordIterator.reset();
+                          this.leftRecord = leftRecordIterator.hasNext() ? leftRecordIterator.next() : null;
+                          leftRecordIterator.mark();
+
+                          rightRecordIterator = BNLJOperator.this.getBlockIterator(this.getRightTableName(), rightIterator, 1);
+                          this.rightRecord = rightRecordIterator.hasNext() ? rightRecordIterator.next() : null;
+                          rightRecordIterator.mark();
+                      } else {
+                          leftRecord = leftRecordIterator.next();
+
+                          rightRecordIterator.reset();
+                          rightRecord = rightRecordIterator.next();
+                          rightRecordIterator.mark();
+                      }
+
+
+                  }
+              }
+          }
+
+      }
 
       /**
        * Yields the next record of this iterator.
@@ -86,7 +198,17 @@ public class BNLJOperator extends JoinOperator {
        * @throws NoSuchElementException if there are no more Records to yield
        */
     public Record next() {
-        throw new UnsupportedOperationException("TODO(hw3): implement");
+        if (!this.hasNext()) {
+            throw new NoSuchElementException();
+        }
+
+        Record nextRecord = this.nextRecord;
+        try {
+            this.fetchNextRecord();
+        } catch (DatabaseException e) {
+            this.nextRecord = null;
+        }
+        return nextRecord;
     }
 
     public void remove() {
