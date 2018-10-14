@@ -99,32 +99,6 @@ public class PNLJOperator extends JoinOperator {
     }
 
 
-      private void nextLeftRecord() throws DatabaseException {
-        if (leftRecordIterator.hasNext()) {
-            leftRecord = leftRecordIterator.next();
-        } else {
-            if (leftIterator.hasNext()) {
-                leftRecordIterator = PNLJOperator.this.getBlockIterator(this.getLeftTableName(), leftIterator, 1);
-                leftRecord = leftRecordIterator.next();
-            } else {
-                throw new DatabaseException("All done");
-            }
-        }
-      }
-
-      private Record rightNext() throws DatabaseException {
-        if (rightRecordIterator.hasNext()) {
-            return rightRecordIterator.next();
-        } else {
-            if (rightIterator.hasNext()) {
-                rightRecordIterator = PNLJOperator.this.getBlockIterator(this.getRightTableName(), rightIterator, 1);
-                return rightRecordIterator.next();
-            } else {
-                return null;
-            }
-        }
-      }
-
       private void resetRightRecord() throws DatabaseException {
           rightIterator = PNLJOperator.this.getPageIterator(this.getRightTableName());
           assert(rightIterator.hasNext());

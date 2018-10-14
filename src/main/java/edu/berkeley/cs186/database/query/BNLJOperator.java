@@ -108,32 +108,6 @@ public class BNLJOperator extends JoinOperator {
         return nextRecord != null;
     }
 
-      private void nextLeftRecord() throws DatabaseException {
-          if (leftRecordIterator.hasNext()) {
-              leftRecord = leftRecordIterator.next();
-          } else {
-              if (leftIterator.hasNext()) {
-                  leftRecordIterator = BNLJOperator.this.getBlockIterator(this.getLeftTableName(), leftIterator, totalBuffers);
-                  leftRecord = leftRecordIterator.next();
-              } else {
-                  throw new DatabaseException("All done");
-              }
-          }
-      }
-
-      private Record rightNext() throws DatabaseException {
-          if (rightRecordIterator.hasNext()) {
-              return rightRecordIterator.next();
-          } else {
-              if (rightIterator.hasNext()) {
-                  rightRecordIterator = BNLJOperator.this.getBlockIterator(this.getRightTableName(), rightIterator, 1);
-                  return rightRecordIterator.next();
-              } else {
-                  return null;
-              }
-          }
-      }
-
       private void resetRightRecord() throws DatabaseException {
           rightIterator = BNLJOperator.this.getPageIterator(this.getRightTableName());
           assert(rightIterator.hasNext());
