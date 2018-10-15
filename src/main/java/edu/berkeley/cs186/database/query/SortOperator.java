@@ -71,7 +71,15 @@ public class SortOperator  {
    * size of the buffer, but it is done this way for ease.
    */
   public Run sortRun(Run run) throws DatabaseException {
-    throw new UnsupportedOperationException("TODO(hw3): implement");
+      Iterator<Record> runIterator = run.iterator();
+      List<Record> records = new ArrayList<>();
+      while (runIterator.hasNext()) {
+          records.add(runIterator.next());
+      }
+      records.sort(comparator);
+      Run sortedRun = new Run();
+      sortedRun.addRecords(records);
+      return sortedRun;
   }
 
 
