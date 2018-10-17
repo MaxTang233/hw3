@@ -168,6 +168,8 @@ public class SortOperator  {
               if (recordIterator.hasNext()) {
                   record = recordIterator.next();
                   run.addRecord(record.getValues());
+              } else {
+                  break;
               }
               i +=1;
           }
